@@ -347,7 +347,7 @@ class ChatterboxTTS:
 
     def generate(
         self,
-        text: str,
+        segments: List[Tuple[str, float]],
         repetition_penalty: float = 1.2,
         min_p: float = 0.05,
         top_p: float = 1.0,
@@ -370,9 +370,6 @@ class ChatterboxTTS:
             ), "Please `prepare_conditionals` first or specify `audio_prompt_path`"
 
         self._update_exaggeration(exaggeration)
-
-        # Parse text segments with pauses
-        segments = parse_pause_tags(text)
 
         # Generate audio for each segment
         audio_parts = []

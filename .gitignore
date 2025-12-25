@@ -40,6 +40,8 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+out
+
 syn_out/
 checkpoints/
 .gradio
