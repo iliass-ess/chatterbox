@@ -54,9 +54,57 @@ def main():
             print(f"Error: Manifest file '{args.manifest_file}' not found")
             return
 
-        manifest_content = manifest_file.read_text()
-        print(f"Manifest content from: {args.manifest_file}")
-        print(manifest_content)
+        # Read and parse manifest
+        with open(manifest_file, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        print(f"Loaded manifest from: {args.manifest_file}")
+
+        # Get output directory from manifest file location
+        OUTPUT_DIR = str(manifest_file.parent)
+
+        # Filter invalid chunks
+        invalid_entries = [entry for entry in manifest if not entry.get("valid", False)]
+
+        if not invalid_entries:
+            print("No invalid chunks found. All chunks are valid!")
+            return
+
+        print(f"Found {len(invalid_entries)} invalid chunk(s) to regenerate")
+        print(f"Output directory: {OUTPUT_DIR}")
+        print(f"Device: {args.device}")
+
+        # Load model
+        model = ChatterboxTTS.from_pretrained(device=args.device)
+
+        # Regenerate invalid chunks
+        for entry in invalid_entries:
+            chunk = entry["chunk"]
+            audio_file = entry["audio_file"]
+
+            print(f"Regenerating: {audio_file}")
+
+            segments = parse_pause_tags(chunk)
+            wav = model.generate(
+                segments,
+                audio_prompt_path=args.audio_prompt,
+                cfg_weight=args.cfg_weight,
+                exaggeration=args.exaggeration,
+            )
+
+            output_path = os.path.join(OUTPUT_DIR, audio_file)
+            ta.save(output_path, wav, model.sr)
+            print(f"Saved: {output_path}")
+
+            # Increment retry count
+            entry["retry"] = entry.get("retry", 0) + 1
+
+        # Save updated manifest
+        with open(manifest_file, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=4, ensure_ascii=False)
+
+        print(f"\nRegenerated {len(invalid_entries)} chunk(s)")
+        print(f"Updated manifest: {manifest_file}")
         return
 
     # Handle text file (existing logic)
@@ -100,7 +148,7 @@ def main():
 
     # Save manifest.json
     manifest_path = os.path.join(OUTPUT_DIR, "manifest.json")
-    with open(manifest_path, "w") as f:
+    with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=4, ensure_ascii=False)
 
     print(f"\nAll files saved to '{OUTPUT_DIR}/' directory")
