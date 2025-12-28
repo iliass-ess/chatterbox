@@ -347,7 +347,7 @@ class ChatterboxTTS:
 
     def generate(
         self,
-        segments: List[Tuple[str, float]],
+        text: str,
         repetition_penalty: float = 1.2,
         min_p: float = 0.05,
         top_p: float = 1.0,
@@ -372,6 +372,7 @@ class ChatterboxTTS:
         self._update_exaggeration(exaggeration)
 
         # Generate audio for each segment
+        segments = parse_pause_tags(text)
         audio_parts = []
         for text_segment, pause_duration in segments:
             if text_segment.strip():

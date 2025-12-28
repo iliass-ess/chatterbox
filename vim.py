@@ -2,7 +2,7 @@ import os
 import argparse
 import json
 from pathlib import Path
-from chatterbox.tts_extended import ChatterboxTTS, parse_pause_tags
+from chatterbox.tts_extended import ChatterboxTTS
 import torchaudio as ta
 from utils.text import chunk_text
 
@@ -84,9 +84,8 @@ def main():
 
             print(f"Regenerating: {audio_file}")
 
-            segments = parse_pause_tags(chunk)
             wav = model.generate(
-                segments,
+                chunk,
                 audio_prompt_path=args.audio_prompt,
                 cfg_weight=args.cfg_weight,
                 exaggeration=args.exaggeration,
@@ -128,9 +127,8 @@ def main():
     manifest = []
 
     for i, chunk in enumerate(chunks):
-        segments = parse_pause_tags(chunk)
         wav = model.generate(
-            segments,
+            chunk,
             audio_prompt_path=args.audio_prompt,
             cfg_weight=args.cfg_weight,
             exaggeration=args.exaggeration,
