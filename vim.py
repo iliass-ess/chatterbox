@@ -1,5 +1,6 @@
 import os
 import argparse
+import json
 from pathlib import Path
 from chatterbox.tts_extended import ChatterboxTTS, parse_pause_tags
 import torchaudio as ta
@@ -76,6 +77,8 @@ def main():
     model = ChatterboxTTS.from_pretrained(device=args.device)
 
     chunks = chunk_text(text)
+    manifest = []
+
     for i, chunk in enumerate(chunks):
         segments = parse_pause_tags(chunk)
         wav = model.generate(
@@ -85,11 +88,23 @@ def main():
             exaggeration=args.exaggeration,
         )
 
-        output_path = os.path.join(OUTPUT_DIR, f"{i+1:03d}.wav")
+        output_filename = f"{i+1:03d}.wav"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
         ta.save(output_path, wav, model.sr)
         print(f"Saved: {output_path}")
 
+        # Add entry to manifest
+        manifest.append(
+            {"chunk": chunk, "audio_file": output_filename, "retry": 0, "valid": False}
+        )
+
+    # Save manifest.json
+    manifest_path = os.path.join(OUTPUT_DIR, "manifest.json")
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=4, ensure_ascii=False)
+
     print(f"\nAll files saved to '{OUTPUT_DIR}/' directory")
+    print(f"Manifest saved to: {manifest_path}")
 
 
 if __name__ == "__main__":
