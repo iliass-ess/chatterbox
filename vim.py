@@ -67,16 +67,13 @@ def process_manifest(args):
         print(f"Error: Manifest file '{args.manifest_file}' not found")
         return
 
-    # Read and parse manifest
     with open(manifest_file, "r", encoding="utf-8") as f:
         manifest = json.load(f)
 
     print(f"Loaded manifest from: {args.manifest_file}")
 
-    # Get output directory from manifest file location
     output_dir = str(manifest_file.parent)
 
-    # Filter invalid chunks
     invalid_entries = [entry for entry in manifest if not entry.get("valid", False)]
 
     if not invalid_entries:
@@ -87,10 +84,8 @@ def process_manifest(args):
     print(f"Output directory: {output_dir}")
     print(f"Device: {args.device}")
 
-    # Load model
     model = ChatterboxTTS.from_pretrained(device=args.device)
 
-    # Regenerate invalid chunks
     for entry in invalid_entries:
         chunk = entry["chunk"]
         audio_file = entry["audio_file"]
@@ -104,10 +99,8 @@ def process_manifest(args):
         output_path = os.path.join(output_dir, audio_file)
         save_audio(wav, output_path, model.sr)
 
-        # Increment retry count
         entry["retry"] = entry.get("retry", 0) + 1
 
-    # Save updated manifest
     with open(manifest_file, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=4, ensure_ascii=False)
 
@@ -120,7 +113,6 @@ def process_text_file(args):
     output_dir = args.output
     os.makedirs(output_dir, exist_ok=True)
 
-    # Read text from file
     text_file = Path(args.text_file)
     if not text_file.exists():
         print(f"Error: Text file '{args.text_file}' not found")
@@ -131,10 +123,8 @@ def process_text_file(args):
     print(f"Output directory: {output_dir}")
     print(f"Device: {args.device}")
 
-    # Load model
     model = ChatterboxTTS.from_pretrained(device=args.device)
 
-    # Process chunks
     chunks = chunk_text(text)
     manifest = []
 
@@ -147,7 +137,6 @@ def process_text_file(args):
         output_path = os.path.join(output_dir, output_filename)
         save_audio(wav, output_path, model.sr)
 
-        # Add entry to manifest
         manifest.append(
             {
                 "chunk": chunk,
@@ -157,7 +146,6 @@ def process_text_file(args):
             }
         )
 
-    # Save manifest.json
     manifest_path = os.path.join(output_dir, "manifest.json")
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=4, ensure_ascii=False)
