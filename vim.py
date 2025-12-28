@@ -23,7 +23,7 @@ def parse_args():
         help="Output directory for wav files (default: out)",
     )
     parser.add_argument(
-        "--device", type=str, required=True, help="Device to use (default: cpu)"
+        "--device", type=str, required=True, help="Device to use (cpu or cuda)"
     )
     parser.add_argument(
         "--audio-prompt",
@@ -44,71 +44,81 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def generate_audio(model, chunk, audio_prompt, cfg_weight, exaggeration):
+    """Generate audio for a single chunk."""
+    return model.generate(
+        chunk,
+        audio_prompt_path=audio_prompt,
+        cfg_weight=cfg_weight,
+        exaggeration=exaggeration,
+    )
 
-    # Handle manifest file
-    if args.manifest_file:
-        manifest_file = Path(args.manifest_file)
-        if not manifest_file.exists():
-            print(f"Error: Manifest file '{args.manifest_file}' not found")
-            return
 
-        # Read and parse manifest
-        with open(manifest_file, "r", encoding="utf-8") as f:
-            manifest = json.load(f)
+def save_audio(wav, output_path, sample_rate):
+    """Save audio file to disk."""
+    ta.save(output_path, wav, sample_rate)
+    print(f"Saved: {output_path}")
 
-        print(f"Loaded manifest from: {args.manifest_file}")
 
-        # Get output directory from manifest file location
-        OUTPUT_DIR = str(manifest_file.parent)
-
-        # Filter invalid chunks
-        invalid_entries = [entry for entry in manifest if not entry.get("valid", False)]
-
-        if not invalid_entries:
-            print("No invalid chunks found. All chunks are valid!")
-            return
-
-        print(f"Found {len(invalid_entries)} invalid chunk(s) to regenerate")
-        print(f"Output directory: {OUTPUT_DIR}")
-        print(f"Device: {args.device}")
-
-        # Load model
-        model = ChatterboxTTS.from_pretrained(device=args.device)
-
-        # Regenerate invalid chunks
-        for entry in invalid_entries:
-            chunk = entry["chunk"]
-            audio_file = entry["audio_file"]
-
-            print(f"Regenerating: {audio_file}")
-
-            wav = model.generate(
-                chunk,
-                audio_prompt_path=args.audio_prompt,
-                cfg_weight=args.cfg_weight,
-                exaggeration=args.exaggeration,
-            )
-
-            output_path = os.path.join(OUTPUT_DIR, audio_file)
-            ta.save(output_path, wav, model.sr)
-            print(f"Saved: {output_path}")
-
-            # Increment retry count
-            entry["retry"] = entry.get("retry", 0) + 1
-
-        # Save updated manifest
-        with open(manifest_file, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=4, ensure_ascii=False)
-
-        print(f"\nRegenerated {len(invalid_entries)} chunk(s)")
-        print(f"Updated manifest: {manifest_file}")
+def process_manifest(args):
+    """Process manifest file and regenerate invalid chunks."""
+    manifest_file = Path(args.manifest_file)
+    if not manifest_file.exists():
+        print(f"Error: Manifest file '{args.manifest_file}' not found")
         return
 
-    # Handle text file (existing logic)
-    OUTPUT_DIR = args.output
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Read and parse manifest
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    print(f"Loaded manifest from: {args.manifest_file}")
+
+    # Get output directory from manifest file location
+    output_dir = str(manifest_file.parent)
+
+    # Filter invalid chunks
+    invalid_entries = [entry for entry in manifest if not entry.get("valid", False)]
+
+    if not invalid_entries:
+        print("No invalid chunks found. All chunks are valid!")
+        return
+
+    print(f"Found {len(invalid_entries)} invalid chunk(s) to regenerate")
+    print(f"Output directory: {output_dir}")
+    print(f"Device: {args.device}")
+
+    # Load model
+    model = ChatterboxTTS.from_pretrained(device=args.device)
+
+    # Regenerate invalid chunks
+    for entry in invalid_entries:
+        chunk = entry["chunk"]
+        audio_file = entry["audio_file"]
+
+        print(f"Regenerating: {audio_file}")
+
+        wav = generate_audio(
+            model, chunk, args.audio_prompt, args.cfg_weight, args.exaggeration
+        )
+
+        output_path = os.path.join(output_dir, audio_file)
+        save_audio(wav, output_path, model.sr)
+
+        # Increment retry count
+        entry["retry"] = entry.get("retry", 0) + 1
+
+    # Save updated manifest
+    with open(manifest_file, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=4, ensure_ascii=False)
+
+    print(f"\nRegenerated {len(invalid_entries)} chunk(s)")
+    print(f"Updated manifest: {manifest_file}")
+
+
+def process_text_file(args):
+    """Process text file and generate audio chunks."""
+    output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
 
     # Read text from file
     text_file = Path(args.text_file)
@@ -118,39 +128,51 @@ def main():
 
     text = text_file.read_text().strip()
     print(f"Read text from: {args.text_file}")
-    print(f"Output directory: {OUTPUT_DIR}")
+    print(f"Output directory: {output_dir}")
     print(f"Device: {args.device}")
 
+    # Load model
     model = ChatterboxTTS.from_pretrained(device=args.device)
 
+    # Process chunks
     chunks = chunk_text(text)
     manifest = []
 
     for i, chunk in enumerate(chunks):
-        wav = model.generate(
-            chunk,
-            audio_prompt_path=args.audio_prompt,
-            cfg_weight=args.cfg_weight,
-            exaggeration=args.exaggeration,
+        wav = generate_audio(
+            model, chunk, args.audio_prompt, args.cfg_weight, args.exaggeration
         )
 
         output_filename = f"{i+1:03d}.wav"
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
-        ta.save(output_path, wav, model.sr)
-        print(f"Saved: {output_path}")
+        output_path = os.path.join(output_dir, output_filename)
+        save_audio(wav, output_path, model.sr)
 
         # Add entry to manifest
         manifest.append(
-            {"chunk": chunk, "audio_file": output_filename, "retry": 0, "valid": False}
+            {
+                "chunk": chunk,
+                "audio_file": output_filename,
+                "retry": 0,
+                "valid": False,
+            }
         )
 
     # Save manifest.json
-    manifest_path = os.path.join(OUTPUT_DIR, "manifest.json")
+    manifest_path = os.path.join(output_dir, "manifest.json")
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=4, ensure_ascii=False)
 
-    print(f"\nAll files saved to '{OUTPUT_DIR}/' directory")
+    print(f"\nAll files saved to '{output_dir}/' directory")
     print(f"Manifest saved to: {manifest_path}")
+
+
+def main():
+    args = parse_args()
+
+    if args.manifest_file:
+        process_manifest(args)
+    else:
+        process_text_file(args)
 
 
 if __name__ == "__main__":
