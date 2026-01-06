@@ -2,7 +2,7 @@ import os
 import argparse
 import json
 from pathlib import Path
-from chatterbox.tts_extended import ChatterboxTTS
+from chatterbox.tts_extended import ChatterboxTTS, parse_pause_tags, punc_norm
 import torchaudio as ta
 from utils.text import chunk_text
 
@@ -137,9 +137,16 @@ def process_text_file(args):
         output_path = os.path.join(output_dir, output_filename)
         save_audio(wav, output_path, model.sr)
 
+        normalized_segments = []
+        segments = parse_pause_tags(chunk)
+        for segment, _ in segments:
+            if segment.strip():
+                normalized_segments.append(punc_norm(segment))
+
         manifest.append(
             {
                 "chunk": chunk,
+                "normalized_chunk": " ".join(normalized_segments),
                 "audio_file": output_filename,
                 "retry": 0,
                 "valid": False,
