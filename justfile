@@ -1,2 +1,2 @@
 run:
-    uvicorn server:app --uds /dev/shm/generator.sock
+    ./.venv/bin/uvicorn server:app --uds /dev/shm/generator.sock
