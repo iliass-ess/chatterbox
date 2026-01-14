@@ -33,7 +33,7 @@ def generate(text: str, file_id: str):
     file_path = RAM_DIR / f"{file_id}.wav"
     
     wav = generate_audio(
-        model, text, "vim.wav", 0.1, 0.1
+        model, text, "vim.wav", 0.5, 0.6
     )
 
     save_audio(wav, file_path, model.sr)
